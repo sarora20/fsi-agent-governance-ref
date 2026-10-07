@@ -11,17 +11,18 @@ explicitly wherever that distinction matters.
 ## Deployment view
 
 ```mermaid
-flowchart LR
-  subgraph User side
+%%{init: {'flowchart': {'rankSpacing': 55, 'nodeSpacing': 35, 'padding': 20}}}%%
+flowchart TD
+  subgraph User["User side"]
     A[Advisor UI]
     S[Supervisor console]
   end
-  subgraph Agent runtime
+  I[Identity provider<br/>Keycloak 26.7 or dev issuer]
+  subgraph Runtime["Agent runtime"]
     R[AgentRunner / ADK agent]
     M[(Model provider<br/>Claude · Bedrock · Gemini)]
   end
-  I[Identity provider<br/>Keycloak 26.7 or dev issuer]
-  subgraph Gateway service - PEP
+  subgraph Gw["Gateway service (PEP)"]
     G[ToolGateway]
     P[Policy + velocity<br/>or external AuthZEN PDP]
     T[Txn-Token service]
@@ -33,13 +34,13 @@ flowchart LR
   A -->|session| I
   I -->|delegation token| R
   R <--> M
-  R -->|Bearer + Idempotency-Key + traceparent| G
-  S -->|own token, approvals:decide| G
+  R -->|"Bearer, Idempotency-Key, traceparent"| G
+  S -->|"own token, approvals:decide"| G
   G --> P
   G --> T
   G --> DB
   G --> AU
-  G -->|Transaction Token, never the user's token| B
+  G -->|"Transaction Token, never the user's token"| B
 ```
 
 The agent runtime holds only a delegation token and the gateway URL. It has no backend credentials,
