@@ -6,6 +6,6 @@ entitlement -> risk ceiling -> run budgets -> policy -> cross-run velocity -> du
 (re-validated at execution) -> execute -> output scan -> tamper-evident audit.
 """
 
-__version__ = "0.6.0"
+__version__ = "1.0.0"
 AGENT_ID = "advisor-assist-agent"
 AGENT_VERSION = __version__

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fsi-agent-governance-ref"
-version = "0.6.0"
+version = "1.0.0"
 description = "Reference build: a governed, model-agnostic agent for a regulated financial-services workflow."
 readme = "README.md"
 requires-python = ">=3.10"

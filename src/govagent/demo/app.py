@@ -96,7 +96,7 @@ if (window.opener) {{ window.opener.postMessage({payload}, location.origin); win
 
 def create_demo_app(gateway_url: str = "http://127.0.0.1:8080", gateway_client: httpx.Client | None = None,
                     identity: DevIdentity | OidcIdentity | None = None) -> FastAPI:
-    app = FastAPI(title="govagent live demo", version="0.6.0")
+    app = FastAPI(title="govagent live demo", version="1.0.0")
     identity = identity or DevIdentity()
     broker = identity.broker if identity.mode == "dev" else KeycloakTokenBroker(identity)
     ledger: TokenLedger = broker.ledger
