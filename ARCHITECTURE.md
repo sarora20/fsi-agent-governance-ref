@@ -81,7 +81,7 @@ sequenceDiagram
   A->>K: token exchange (subject_token = person's token, scope = agent tools)
   K-->>A: token (aud: gateway, act: agent, at+jwt, EdDSA)
   A->>G: tool call with that token
-  G->>K: JWKS (cached; refetched on unknown kid)
+  G->>K: JWKS (cached, refetched on unknown kid)
   G->>G: verify, then role and client book from the directory
 ```
 
@@ -192,7 +192,7 @@ sequenceDiagram
   G->>G: checks 1-15
   G-->>R: 202 pending_approval (action act-9)
   R->>M: tool result: pending
-  M-->>R: "Submitted for approval; not sent yet"
+  M-->>R: "Submitted for approval, not sent yet"
   R->>G: GET /v1/actions/act-9 (poll, like an MCP task)
   S->>G: POST /v1/approvals/act-9/decision (own token)
   G->>G: four-eyes, authority, expiry, re-validate
