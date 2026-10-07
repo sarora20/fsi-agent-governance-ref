@@ -1,0 +1,1136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Gateway Demo</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #16181d; --muted: #5c6370; --line: #e3e6eb;
+  --accent: #2458d6; --accent-ink: #ffffff; --soft: #eef2fb;
+  --pass: #1f8a4c; --pass-bg: #e6f4ec; --fail: #c62f2f; --fail-bg: #fbe9e9;
+  --wait: #b26a00; --wait-bg: #fff3e0; --skip: #b8bec8; --flag: #7b3fc4; --flag-bg: #f1e9fb;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* trace lanes: reference categorical slots 1-5, validated (adjacent CVD >= 8.4, normal >= 19.3) */
+  --lane-console: #2a78d6; --lane-agent: #eb6834; --lane-idp: #1baf7a; --lane-gateway: #eda100; --lane-backend: #e87ba4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111317; --panel: #1a1d23; --ink: #e8eaee; --muted: #9aa2ae; --line: #2b3039;
+    --accent: #6d9bff; --accent-ink: #0b1020; --soft: #1f2633;
+    --pass: #4cc787; --pass-bg: #16301f; --fail: #ff7a7a; --fail-bg: #3a1c1c;
+    --wait: #ffb347; --wait-bg: #3a2a10; --skip: #4a515c; --flag: #c49bff; --flag-bg: #2a2140;
+    --lane-console: #3987e5; --lane-agent: #d95926; --lane-idp: #199e70; --lane-gateway: #c98500; --lane-backend: #d55181;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--panel);
+  border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+header .sub { color: var(--muted); font-size: 12px; }
+.spacer { flex: 1; }
+label.ctl { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+select, input, textarea, button { font: inherit; color: inherit; }
+select, input[type=text], textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+button { cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); padding: 6px 12px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button:disabled { opacity: .5; cursor: default; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--skip); }
+.dot.ok { background: var(--pass); } .dot.bad { background: var(--fail); }
+main { display: grid; grid-template-columns: minmax(360px, 5fr) 7fr; gap: 16px; padding: 16px 20px; }
+@media (min-width: 901px) { body { height: 100vh; display: flex; flex-direction: column; } main { flex: 1; min-height: 0; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; min-height: 0; }
+.panel > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0; padding: 12px 14px 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; border-bottom: 1px solid var(--line); }
+.chip { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line); }
+.chip:hover { border-color: var(--accent); }
+#chat { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 92%; padding: 8px 11px; border-radius: 10px; white-space: pre-wrap; }
+.msg.user { align-self: flex-end; background: var(--accent); color: var(--accent-ink); }
+.msg.agent { align-self: flex-start; background: var(--soft); cursor: pointer; border: 1px solid transparent; }
+.msg.agent.selected { border-color: var(--accent); }
+.msg .meta { font-size: 11px; opacity: .75; margin-top: 4px; }
+.msg.note { align-self: stretch; max-width: 100%; background: transparent; border: 1px dashed var(--line); color: var(--muted); font-size: 12px; }
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; margin-right: 4px; }
+.b-executed { background: var(--pass-bg); color: var(--pass); }
+.b-pending_approval, .b-wait { background: var(--wait-bg); color: var(--wait); }
+.b-denied, .b-rejected, .b-approval_denied, .b-expired, .b-error, .b-conflict { background: var(--fail-bg); color: var(--fail); }
+form#ask { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+form#ask input { flex: 1; }
+.tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
+.tab { white-space: nowrap; flex: none; }
+header select { max-width: 170px; }
+.grp { font-size: 12px; color: var(--muted); align-self: center; font-weight: 600; }
+.tab { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; padding: 8px 12px; color: var(--muted); }
+.tab.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.tab .count { font-size: 11px; background: var(--wait-bg); color: var(--wait); border-radius: 999px; padding: 0 6px; margin-left: 4px; }
+.pane { flex: 1; overflow-y: auto; padding: 14px; display: none; }
+.pane.active { display: block; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.card h3 { margin: 0 0 4px; font-size: 14px; font-family: var(--mono); }
+.args { font-family: var(--mono); font-size: 12px; color: var(--muted); word-break: break-all; }
+.reasons { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+.pipe { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; margin-top: 10px; }
+.stage { font-size: 10px; text-align: center; padding: 6px 2px; border-radius: 4px; line-height: 1.15; min-height: 42px;
+  display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--skip); border: 1px solid var(--line); }
+.stage.pass { background: var(--pass-bg); color: var(--pass); border-color: transparent; }
+.stage.fail { background: var(--fail); color: #fff; font-weight: 700; border-color: transparent; }
+.stage.wait { background: var(--wait-bg); color: var(--wait); font-weight: 700; border-color: var(--wait); }
+.stage.flag { background: var(--flag-bg); color: var(--flag); font-weight: 700; border-color: var(--flag); }
+.legend { display: flex; gap: 12px; font-size: 11px; color: var(--muted); margin-bottom: 12px; flex-wrap: wrap; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.l-pass::before { background: var(--pass-bg); border: 1px solid var(--pass); }
+.l-fail::before { background: var(--fail); } .l-wait::before { background: var(--wait-bg); border: 1px solid var(--wait); }
+.l-flag::before { background: var(--flag-bg); border: 1px solid var(--flag); } .l-skip::before { background: var(--bg); border: 1px solid var(--line); }
+.why { background: var(--soft); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
+.empty { color: var(--muted); padding: 30px 10px; text-align: center; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+td.mono { font-family: var(--mono); white-space: nowrap; }
+.chain { font-size: 12px; font-weight: 600; }
+.chain.ok { color: var(--pass); } .chain.bad { color: var(--fail); }
+.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.transcript { font-size: 12px; margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.transcript div { margin: 3px 0; }
+.transcript .k { color: var(--muted); font-family: var(--mono); }
+#idbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 20px; font-size: 12px;
+  color: var(--muted); background: var(--soft); border-bottom: 1px solid var(--line); }
+#idbar[hidden] { display: none; }
+.who-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink); }
+.who-chip.on { border-color: var(--pass); }
+.who-chip button { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+.signin { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
+  border: 1px dashed var(--accent); background: var(--soft); font-size: 13px; }
+.views { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.views button { border: none; background: transparent; padding: 5px 10px; font-size: 13px; color: var(--muted); }
+.views button.active { background: var(--panel); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.view { display: none !important; }
+main.view.active { display: grid !important; }
+section.page.view.active { display: block !important; }
+.page { padding: 16px 20px; overflow-y: auto; flex: 1; min-height: 0; }
+.page .panel { padding: 14px; margin-bottom: 16px; }
+.agent-tag { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); margin-left: 6px; font-weight: 500; }
+.dlg { border-left: 3px solid var(--lane-agent); padding: 2px 0 2px 12px; margin: 14px 0 6px; }
+.dlg .task { font-size: 13px; }
+.dlg .ans { font-size: 12px; color: var(--muted); white-space: pre-wrap; margin-top: 2px; }
+/* trace waterfall */
+.wf-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--muted); margin: 6px 0 10px; }
+.wf-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; background: var(--c); }
+.wf { font-size: 12px; border-top: 1px solid var(--line); }
+.wf-row { display: grid; grid-template-columns: minmax(180px, 38%) 1fr 64px; gap: 8px; align-items: center; padding: 3px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.wf-row:hover, .wf-row.sel { background: var(--soft); }
+.wf-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); font-size: 11.5px; }
+.wf-name .lane { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: var(--c); }
+.wf-track { position: relative; height: 14px; }
+.wf-bar { position: absolute; top: 3px; height: 8px; border-radius: 4px; background: var(--c); min-width: 2px; }
+.wf-row.err .wf-bar { outline: 2px solid var(--fail); outline-offset: 1px; }
+.wf-row.err .wf-name { color: var(--fail); font-weight: 600; }
+.wf-dur { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wf-detail { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 4px 0 8px; font-family: var(--mono); font-size: 11px; white-space: pre-wrap; word-break: break-all; }
+.wf-tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--panel); font-size: 11px; padding: 5px 8px; border-radius: 6px; z-index: 10; max-width: 360px; }
+/* tokens */
+.tok { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.tok-arrow { text-align: center; color: var(--muted); font-size: 12px; padding: 6px 0; }
+.tok h3 { margin: 0 0 6px; font-size: 14px; }
+.kv { display: grid; grid-template-columns: 110px 1fr; gap: 3px 10px; font-size: 12px; }
+.kv .k { color: var(--muted); }
+.kv .v { font-family: var(--mono); word-break: break-all; }
+.diff { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 0 6px; border-radius: 4px; margin: 2px 4px 2px 0; }
+.diff.add { background: var(--pass-bg); color: var(--pass); } .diff.del { background: var(--fail-bg); color: var(--fail); } .diff.chg { background: var(--wait-bg); color: var(--wait); }
+.jwt { font-family: var(--mono); font-size: 11px; word-break: break-all; background: var(--bg); border-radius: 6px; padding: 6px 8px; margin-top: 8px; }
+.jwt .h { color: var(--lane-console); } .jwt .p { color: var(--lane-agent); } .jwt .s { color: var(--muted); }
+.checks { list-style: none; padding: 0; margin: 8px 0 0; font-size: 12px; }
+.checks li { padding: 2px 0; } .checks .ok { color: var(--pass); font-weight: 700; } .checks .no { color: var(--fail); font-weight: 700; }
+/* compare + scores */
+.cmp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.cmp .panel > h2 { text-transform: none; letter-spacing: 0; color: var(--ink); padding: 0 0 4px; }
+.note { color: var(--muted); font-size: 12.5px; }
+.cmp .pipe { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.stage { overflow: hidden; overflow-wrap: anywhere; }
+.cmp h2 { font-size: 15px; margin: 0 0 4px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 10px 0; }
+.tile { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.tile .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tile .l { font-size: 12px; color: var(--muted); }
+.tile .n { font-size: 11px; color: var(--muted); }
+.progress { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+.progress div { height: 100%; background: var(--accent); }
+/* registry / policy / knowledge graph */
+.sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+.sheet > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 4px; }
+.sheet > .note { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.tiers { display: flex; gap: 6px; flex-wrap: wrap; }
+.t-READ { background: var(--pass-bg); color: var(--pass); }
+.t-LOW { background: var(--soft); color: var(--muted); }
+.t-MEDIUM { background: var(--wait-bg); color: var(--wait); }
+.t-HIGH { background: var(--fail-bg); color: var(--fail); }
+.d-allow { background: var(--pass-bg); color: var(--pass); }
+.d-require_approval { background: var(--wait-bg); color: var(--wait); }
+.d-deny { background: var(--fail-bg); color: var(--fail); }
+.rule { border-left: 3px solid var(--line); padding: 4px 0 4px 10px; margin-top: 8px; }
+.rule.d-deny { border-left-color: var(--fail); background: none; color: inherit; }
+.rule.d-require_approval { border-left-color: var(--wait); background: none; color: inherit; }
+.rule code { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.rule .rid { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.deleg { display: grid; gap: 6px; }
+.deleg-row { display: grid; grid-template-columns: minmax(130px, 190px) 1fr; gap: 10px; align-items: baseline;
+  padding: 7px 0; border-top: 1px solid var(--line); }
+.deleg-row:first-child { border-top: none; }
+.deleg-row .who { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.deleg-row .what { display: flex; gap: 5px; flex-wrap: wrap; }
+.tagsm { font-size: 11px; font-family: var(--mono); padding: 1px 6px; border-radius: 4px;
+  background: var(--bg); border: 1px solid var(--line); }
+.tagsm.none { color: var(--muted); font-style: italic; font-family: inherit; }
+.kgbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.kg { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 14px; align-items: start; }
+.kgcanvas { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; position: relative; overflow: hidden; }
+.kgcanvas svg { display: block; width: 100%; height: 540px; touch-action: none; }
+.kgedge { stroke: var(--line); stroke-width: 1.2px; fill: none; }
+.kgedge.on { stroke: var(--accent); stroke-width: 2px; }
+.kgnode { cursor: pointer; }
+.kglabel { font-size: 10.5px; fill: var(--muted); pointer-events: none; paint-order: stroke;
+  stroke: var(--panel); stroke-width: 3.5px; stroke-linejoin: round; }
+.kglabel.on { fill: var(--ink); font-weight: 700; }
+.kgdim { opacity: .15; }
+.kglegend { position: absolute; left: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 4px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; pointer-events: none; }
+.kglegend span { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.kglegend svg { width: 12px; height: 12px; }
+.kgchecks { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.kgchk { display: grid; grid-template-columns: 30px 1fr 112px; gap: 10px; align-items: center;
+  background: var(--panel); padding: 6px 10px; font-size: 12px; }
+.kgchk .i { font-family: var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.kgchk .f { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.kgchk .f b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; }
+.kgchk .f i { display: block; height: 4px; background: var(--fail); border-radius: 2px; }
+.kgchk.quiet .f b { color: var(--muted); font-weight: 400; }
+@media (max-width: 900px) { .views { order: 5; } .kv { grid-template-columns: 90px minmax(0, 1fr); } .cmp { grid-template-columns: minmax(0, 1fr); } .wf-row { grid-template-columns: minmax(120px, 45%) 1fr 52px; }
+  .kg { grid-template-columns: minmax(0, 1fr); } .kgcanvas svg { height: 420px; } .kglegend { position: static; border: 0; border-top: 1px solid var(--line); border-radius: 0; flex-direction: row; flex-wrap: wrap; gap: 4px 12px; } }
+@media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); height: auto; } .panel { min-height: 60vh; } .pipe, .cmp .pipe { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Agent Governance Gateway</h1>
+    <div class="sub">The model proposes. The gateway decides. Fictional firm and data.</div>
+  </div>
+  <nav class="views" aria-label="Views">
+    <button class="active" data-view="demo">Live demo</button>
+    <button data-view="compare">Allowed vs denied</button>
+    <button data-view="registry">Registry</button>
+    <button data-view="policy">Policy</button>
+    <button data-view="graph">Knowledge graph</button>
+    <button data-view="scores">Scores</button>
+  </nav>
+  <div class="spacer"></div>
+  <label class="ctl">Agents <select id="mode"><option value="single">Single agent</option><option value="multi">Orchestrator + specialists</option></select></label>
+  <label class="ctl">Acting as <select id="principal"></select></label>
+  <label class="ctl">Model <select id="model"></select></label>
+  <span class="ctl"><span id="gwdot" class="dot"></span> gateway</span>
+  <span class="ctl" id="idpwrap" hidden><span id="idpdot" class="dot"></span> Keycloak</span>
+  <span class="ctl" id="ctrlwrap" title=""><span id="ctrldot" class="dot"></span> controls</span>
+  <a class="ctl" id="jaeger" hidden target="_blank" rel="noopener">Jaeger ↗</a>
+  <button id="reset" title="Clear pending approvals, limits and demo data. The audit log is kept.">Reset demo</button>
+</header>
+<div id="idbar" hidden aria-label="Who is signed in"></div>
+<main id="view-demo" class="view active">
+  <section class="panel" aria-label="Advisor chat">
+    <h2>Advisor chat</h2>
+    <div class="chips" id="chips"></div>
+    <div id="chat"><div class="empty">Pick a scenario above, or type a request below.</div></div>
+    <form id="ask"><input id="q" type="text" autocomplete="off" placeholder="e.g. Wire $12,000 from C-1001's account 40012345678 to B-2001">
+      <button class="primary" id="send">Send</button></form>
+  </section>
+  <section class="panel" aria-label="Gateway">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="decisions">Gateway decisions</button>
+      <button class="tab" data-tab="trace">Trace</button>
+      <button class="tab" data-tab="tokens">Tokens</button>
+      <button class="tab" data-tab="approvals">Supervisor approvals <span class="count" id="pcount" hidden>0</span></button>
+      <button class="tab" data-tab="audit">Audit log</button>
+    </div>
+    <div class="pane active" id="pane-decisions"><div class="empty">Each tool call the model proposes appears here with every gateway check.</div></div>
+    <div class="pane" id="pane-trace"><div class="empty">Pick a run in the chat to see its OpenTelemetry trace.</div></div>
+    <div class="pane" id="pane-tokens"><div class="empty">Pick a run in the chat to see every token issued for it.</div></div>
+    <div class="pane" id="pane-approvals"></div>
+    <div class="pane" id="pane-audit"></div>
+  </section>
+</main>
+<section id="view-compare" class="page view" aria-label="Allowed versus denied">
+  <div class="panel">
+    <div class="toolbar"><b>Same gateway, same checks: one request goes through, one is stopped.</b><div class="spacer"></div>
+      <label class="ctl">Pair <select id="pair"></select></label><button class="primary" id="runpair">Run both</button></div>
+    <div class="note">Each side is a separate request with its own trace. Gateway checks that passed are folded; the check that stopped a request is shown.</div>
+  </div>
+  <div class="cmp" id="cmp"><div class="empty">Run a pair to compare.</div><div></div></div>
+</section>
+<section id="view-registry" class="page view" aria-label="Registry"><div id="registry"></div></section>
+<section id="view-policy" class="page view" aria-label="Policy at the gateway"><div id="policy"></div></section>
+<section id="view-graph" class="page view" aria-label="Knowledge graph">
+  <div class="sheet">
+    <h2>Knowledge graph</h2>
+    <div class="note" id="kgmeta"></div>
+    <div class="kgbar">
+      <div class="views" id="kglayers" role="tablist" aria-label="Graph layer"></div>
+      <input id="kgq" type="text" placeholder="Filter nodes…" aria-label="Filter nodes" style="max-width:220px">
+      <div class="spacer"></div>
+      <span class="ctl" id="kgblurb"></span>
+    </div>
+    <div class="kg">
+      <div class="kgcanvas"><svg id="kgsvg" aria-label="Knowledge graph"></svg><div class="kglegend" id="kglegend"></div></div>
+      <div class="panel" style="padding:12px" id="kgpanel"></div>
+    </div>
+  </div>
+  <div class="sheet">
+    <h2>Which stage stopped a call</h2>
+    <div class="note">The gateway's sixteen stages in the order it runs them; the first failure stops the
+      request. Counts are this gateway's own audit log, so they grow as you run scenarios.</div>
+    <div class="kgchecks" id="kgchecks"></div>
+  </div>
+</section>
+<section id="view-scores" class="page view" aria-label="Scores"><div id="scores"></div></section>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = v => typeof v === "number" ? "$" + v.toLocaleString() : v;
+let CFG = null, SELECTED = null, BUSY = false;
+const RUNS = [];
+
+class LoginNeeded extends Error { constructor(d) { super(`${d.name} needs to sign in`); this.d = d; } }
+let RETRY = null;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {headers: {"content-type": "application/json"}, ...opts});
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401 && data.error === "login_required") throw new LoginNeeded(data);
+  if (!r.ok && data.error) throw new Error(data.error);
+  return data;
+}
+
+// Keycloak mode: sign-in happens in a popup so the page (and the demo history) stays put.
+function openLogin(who) {
+  window.open(`/auth/login?as=${encodeURIComponent(who)}`, "kc-login", "width=480,height=680");
+}
+function signInPrompt(d, retry) {
+  RETRY = retry ? {who: d.who, fn: retry} : null;
+  const el = document.createElement("div");
+  el.className = "signin";
+  el.innerHTML = `<span>This step needs <b>${esc(d.name)}</b> (${esc(d.role.replace("_", " "))}) signed in with Keycloak.</span>
+    <button class="primary">Sign in as ${esc(d.name.split(" ")[0])}</button>`;
+  el.querySelector("button").onclick = () => openLogin(d.who);
+  return el;
+}
+window.addEventListener("message", async e => {
+  if (e.origin !== location.origin || !e.data || e.data.type !== "signed-in") return;
+  await renderIdbar();
+  if (RETRY && RETRY.who === e.data.who) { const fn = RETRY.fn; RETRY = null; fn(); }
+});
+// If the browser cut the popup's link back to this page, pick the sign-in up when focus returns.
+window.addEventListener("focus", async () => {
+  if (!RETRY || !CFG || CFG.idp.mode !== "keycloak") return;
+  await renderIdbar();
+  if (RETRY && CFG.idp.signed_in.includes(RETRY.who)) { const fn = RETRY.fn; RETRY = null; fn(); }
+});
+async function renderIdbar() {
+  if (!CFG || CFG.idp.mode !== "keycloak") return;
+  const c = await api("/api/config"); CFG.idp = c.idp;
+  const on = new Set(c.idp.signed_in);
+  const bar = $("#idbar"); bar.hidden = false;
+  bar.innerHTML = `<span title="Authorization code + PKCE to sign in; RFC 8693 token exchange for each agent run">Keycloak sign-ins:</span>` +
+    CFG.principals.map(p => `<span class="who-chip ${on.has(p.key) ? "on" : ""}">${esc(p.name)} · ${esc(p.role.replace("_", " "))}
+      ${on.has(p.key) ? `<button data-out="${p.key}" title="Forget this session">sign out</button>` : `<button class="primary" data-in="${p.key}">sign in</button>`}</span>`).join("");
+  bar.querySelectorAll("[data-in]").forEach(b => b.onclick = () => openLogin(b.dataset.in));
+  bar.querySelectorAll("[data-out]").forEach(b => b.onclick = async () => {
+    await api("/auth/logout", {method: "POST", body: JSON.stringify({as: b.dataset.out})}); renderIdbar(); });
+}
+
+function argsText(args) {
+  return Object.entries(args || {}).map(([k, v]) => `${k}=${k === "amount_usd" ? money(v) : v}`).join("  ");
+}
+
+function pipeHtml(p) {
+  return `<div class="pipe">${p.map(s => `<div class="stage ${s.state}" title="${esc(s.label)}: ${s.state}">${esc(s.label)}</div>`).join("")}</div>`;
+}
+
+function callCard(c) {
+  const reasons = (c.reasons || []).length ? `<ul class="reasons">${c.reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : "";
+  const extra = [c.action_id ? `action ${esc(c.action_id)}` : "", c.replayed ? "replayed from idempotency store" : "",
+    (c.flags || []).length ? `flagged: ${c.flags.join(", ")}` : ""].filter(Boolean).join(" · ");
+  const agent = c.agent ? `<span class="agent-tag" title="the agent that made this call">${esc(c.agent)}</span>` : "";
+  return `<div class="card"><h3>${esc(c.tool || "(approval)")} <span class="badge b-${esc(c.outcome)}">${esc((c.outcome || "").replace("_", " "))}</span>${agent}</h3>
+    <div class="args">${esc(argsText(c.args))}</div>${extra ? `<div class="args">${extra}</div>` : ""}${reasons}${pipeHtml(c.pipeline || [])}</div>`;
+}
+
+function legend() {
+  return `<div class="legend"><span class="l-pass">passed</span><span class="l-fail">stopped here</span><span class="l-wait">waiting for a human</span><span class="l-flag">flagged</span><span class="l-skip">not reached / not needed</span></div>`;
+}
+
+function showRun(i) {
+  SELECTED = i;
+  document.querySelectorAll(".msg.agent").forEach(el => el.classList.toggle("selected", +el.dataset.i === i));
+  const run = RUNS[i], pane = $("#pane-decisions");
+  const why = run.why ? `<div class="why"><b>${esc(run.title)}.</b> ${esc(run.why)}</div>` : "";
+  let calls = run.calls.length ? run.calls.map(callCard).join("") : `<div class="empty">No tool calls in this run.</div>`;
+  if (run.mode === "multi" && (run.delegations || []).length) {
+    const own = run.calls.filter(c => c.agent === "orchestrator-agent").map(callCard).join("");
+    calls = own + run.delegations.map(d => `<div class="dlg"><div class="task"><b>orchestrator → ${esc(d.agent_id)}</b>: ${esc(d.task)}</div>
+      ${d.final_text ? `<div class="ans">${esc(d.final_text)}</div>` : ""}</div>${(d.calls || []).map(callCard).join("") || `<div class="args">no tool calls</div>`}`).join("");
+  }
+  const tr = (run.transcript || []).map(e => e.kind === "tool_call"
+      ? `<div><span class="k">model → ${esc(e.tool)}</span> ${esc(argsText(e.args))}</div>`
+      : e.kind === "tool_result" ? `<div><span class="k">gateway → model</span> ${esc(e.result.status)}${e.result.reasons ? ": " + esc(e.result.reasons.join("; ")) : ""}</div>`
+      : `<div><span class="k">model says</span> ${esc(e.text)}</div>`).join("");
+  const flags = (run.guardrail_flags || []).length ? `<div class="why">Harness output check: ${esc(run.guardrail_flags.join(", "))}</div>` : "";
+  pane.innerHTML = `${why}<div class="toolbar"><b>Run ${esc(run.run_id)}</b><span class="args">as ${esc(run.principal)} · ${esc(run.model)} · ${run.mode === "multi" ? "orchestrator + specialists" : "single agent"}</span></div>${flags}${legend()}${calls}
+    ${tr ? `<details class="transcript"><summary>Model ↔ gateway transcript</summary>${tr}</details>` : ""}`;
+  const active = document.querySelector(".tab.active")?.dataset.tab;
+  switchTab(["trace", "tokens"].includes(active) ? active : "decisions");
+}
+
+function addMsg(kind, text, meta = "", i = null) {
+  const chat = $("#chat");
+  if (chat.querySelector(".empty")) chat.innerHTML = "";
+  const el = document.createElement("div");
+  el.className = `msg ${kind}`;
+  el.innerHTML = `${esc(text)}${meta ? `<div class="meta">${meta}</div>` : ""}`;
+  if (i !== null) { el.dataset.i = i; el.onclick = () => showRun(i); }
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+  return el;
+}
+
+function addRuns(runs, scenario) {
+  runs.forEach(run => {
+    if (scenario) Object.assign(run, {title: scenario.title, why: scenario.why});
+    const i = RUNS.push(run) - 1;
+    addMsg("user", run.message, `${esc(run.principal)}`);
+    const badges = run.calls.map(c => `<span class="badge b-${esc(c.outcome)}">${esc(c.tool)}: ${esc((c.outcome || "").replace("_", " "))}</span>`).join("");
+    addMsg("agent", run.final_text || "(no answer)", `${badges} — click for gateway decisions`, i);
+  });
+  showRun(RUNS.length - 1);
+  refreshApprovals();
+}
+
+async function send(message) {
+  if (BUSY || !message) return;
+  BUSY = true; $("#send").disabled = true;
+  const thinking = addMsg("note", "Agent is working…");
+  try {
+    const data = await api("/api/chat", {method: "POST", body: JSON.stringify({principal: $("#principal").value, model: $("#model").value, mode: $("#mode").value, message})});
+    thinking.remove(); addRuns(data.runs);
+  } catch (e) {
+    if (e instanceof LoginNeeded) { thinking.textContent = ""; thinking.appendChild(signInPrompt(e.d, () => send(message))); }
+    else thinking.textContent = "Error: " + e.message;
+  }
+  BUSY = false; $("#send").disabled = false;
+}
+
+async function runScenario(id) {
+  if (BUSY) return;
+  BUSY = true;
+  const s = [...CFG.scenarios, ...CFG.extra_demos, ...CFG.multi_scenarios].find(x => x.id === id);
+  const note = addMsg("note", `Scenario: ${s.title} — ${s.why}`);
+  try { const data = await api(`/api/scenario/${id}`, {method: "POST"}); addRuns(data.runs, data.scenario); }
+  catch (e) {
+    if (e instanceof LoginNeeded) { BUSY = false; note.appendChild(signInPrompt(e.d, () => { note.remove(); runScenario(id); })); return; }
+    note.textContent += "  Error: " + e.message;
+  }
+  BUSY = false;
+}
+
+async function refreshApprovals() {
+  const pane = $("#pane-approvals");
+  let data;
+  try { data = await api("/api/approvals?who=sup"); } catch (e) {
+    if (e instanceof LoginNeeded) { pane.innerHTML = ""; pane.appendChild(signInPrompt(e.d, refreshApprovals)); return; }
+    pane.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  const items = data.pending || [];
+  $("#pcount").hidden = !items.length; $("#pcount").textContent = items.length;
+  const approvers = CFG.principals.filter(p => ["supervisor", "advisor", "service_associate"].includes(p.role));
+  pane.innerHTML = `<div class="why">Supervisor queue, read with Casey's own token. Decisions use the approver's own token. Try approving as <b>Ana</b> (the requester): her token has no approval scope, so the gateway refuses. Supervisors also cannot approve their own requests (four-eyes).</div>` +
+    (items.length ? items.map(a => {
+      const mins = Math.max(0, Math.round((a.expires_at * 1000 - Date.now()) / 60000));
+      return `<div class="card" id="a-${esc(a.action_id)}"><h3>${esc(a.tool)} <span class="badge b-wait">pending</span></h3>
+        <div class="args">${esc(argsText(a.args))}</div>
+        <div class="args">requested by ${esc(a.principal)} · ${esc(a.action_id)} · expires in ${mins} min</div>
+        <ul class="reasons">${(a.reasons || []).map(r => `<li>${esc(r)}</li>`).join("")}</ul>
+        <div class="row"><label class="ctl">Approve as <select class="who">${approvers.map(p => `<option value="${p.key}" ${p.key === "sup" ? "selected" : ""}>${esc(p.name)} (${esc(p.role)})</option>`).join("")}</select></label>
+          <input type="text" class="note" placeholder="note (e.g. called client)">
+          <button class="primary" data-act="approve">Approve</button><button data-act="reject">Reject</button></div>
+        <div class="result"></div></div>`;
+    }).join("") : `<div class="empty">No pending actions. Run “Wire that needs a supervisor”.</div>`);
+  pane.querySelectorAll("button[data-act]").forEach(b => b.onclick = async () => {
+    const card = b.closest(".card"), id = card.id.slice(2);
+    const body = {approve: b.dataset.act === "approve", as: $(".who", card).value, note: $(".note", card).value};
+    let r;
+    try { r = await api(`/api/approvals/${id}`, {method: "POST", body: JSON.stringify(body)}); }
+    catch (e) {
+      if (e instanceof LoginNeeded) { $(".result", card).innerHTML = ""; $(".result", card).appendChild(signInPrompt(e.d, () => b.click())); return; }
+      $(".result", card).textContent = "Error: " + e.message; return;
+    }
+    const refused = r.status === "approval_denied" && !(r.reasons || []).some(x => /declined by/.test(x));
+    $(".result", card).innerHTML = `<div class="row"><span class="badge b-${esc(r.status)}">${esc(refused ? "refused" : r.status.replace("_", " "))}</span>
+      <span>${esc((r.reasons || []).join("; "))}</span>${r.data ? `<span class="args">${esc(JSON.stringify(r.data))}</span>` : ""}</div>${r.pipeline ? pipeHtml(r.pipeline) : ""}`;
+    if (!refused) setTimeout(refreshApprovals, 3000);
+  });
+}
+
+async function refreshAudit() {
+  const pane = $("#pane-audit");
+  const filter = pane.dataset.filter === "run" && SELECTED !== null ? RUNS[SELECTED].run_id : null;
+  // Reads with whichever identity "Acting as" currently names -- not always compliance. Switching
+  // it there and reopening this tab is how to watch the gateway refuse a non-compliance token live.
+  const who = $("#principal").value || "cmp";
+  let data;
+  try {
+    data = await api(`/api/audit?who=${encodeURIComponent(who)}` +
+                     (filter && !filter.includes(" ") ? `&run_id=${encodeURIComponent(filter)}` : ""));
+  } catch (e) {
+    if (e instanceof LoginNeeded) { pane.innerHTML = ""; pane.appendChild(signInPrompt(e.d, refreshAudit)); return; }
+    pane.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  const ra = data.read_as || {name: who, role: ""};
+  const identityNote = `read as ${esc(ra.name)} (${esc(ra.role.replace("_", " "))})`;
+  if (data.error) {
+    pane.innerHTML = `<div class="toolbar"><span class="args">${identityNote} — refused: ${esc(data.error_description || data.error)}</span>
+        <div class="spacer"></div><button id="arefresh">Refresh</button></div>
+      <div class="empty">The gateway denied this token (audit:read is never issued to an advisor, service associate or
+        analyst). Switch "Acting as" to Riley Brooks (compliance) to read the log.</div>`;
+    $("#arefresh").onclick = refreshAudit;
+    return;
+  }
+  const rows = (data.entries || []).slice().reverse().map(e => `<tr><td>${e.seq}</td><td>${esc((e.ts || "").slice(11, 19))}</td><td>${esc(e.event)}</td>
+    <td class="mono">${esc(e.tool || "")}</td><td>${e.outcome ? `<span class="badge b-${esc(e.outcome)}">${esc(e.outcome)}</span>` : esc(e.decision || "")}</td>
+    <td>${esc(e.principal || e.approver || "")}</td><td class="mono">${esc(e.run_id || "")}</td><td class="mono" title="${esc(e.hash)}">${esc((e.hash || "").slice(0, 10))}…</td></tr>`).join("");
+  pane.innerHTML = `<div class="toolbar"><span class="chain ${data.intact ? "ok" : "bad"}">${data.intact ? "✔ hash chain intact" : "✖ chain broken at " + data.first_broken_seq}</span>
+      <span class="args">${data.total} entries · ${identityNote} · account numbers masked</span><div class="spacer"></div>
+      <label class="ctl"><input type="checkbox" id="onlyrun" ${filter ? "checked" : ""}> selected run only</label><button id="arefresh">Refresh</button></div>
+    <table><thead><tr><th>#</th><th>time</th><th>event</th><th>tool</th><th>outcome</th><th>who</th><th>run</th><th>hash</th></tr></thead><tbody>${rows}</tbody></table>`;
+  $("#arefresh").onclick = refreshAudit;
+  $("#onlyrun").onchange = e => { pane.dataset.filter = e.target.checked ? "run" : ""; refreshAudit(); };
+}
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".pane").forEach(p => p.classList.toggle("active", p.id === "pane-" + name));
+  if (name === "approvals") refreshApprovals();
+  if (name === "audit") refreshAudit();
+  const run = SELECTED !== null ? RUNS[SELECTED] : null;
+  if (name === "trace") run && run.trace_id ? renderTrace($("#pane-trace"), run.trace_id) : null;
+  if (name === "tokens") run && run.trace_id ? renderTokens($("#pane-tokens"), run.trace_id) : null;
+}
+
+// ---------------------------------------------------------------- trace waterfall (OpenTelemetry spans)
+const LANES = {console: "Console", agent: "Agents (harness)", idp: "Identity provider", gateway: "Gateway checks", backend: "Backend"};
+function laneOf(sp) {
+  if (sp.name.startsWith("idp ") || sp.scope === "govagent.idp") return "idp";
+  if (sp.scope === "govagent.gateway") return sp.name.startsWith("backend") ? "backend" : "gateway";
+  if (sp.scope === "govagent.console") return "console";
+  return "agent";
+}
+function orderSpans(spans) {
+  const kids = {}, ids = new Set(spans.map(x => x.span_id));
+  spans.forEach(x => { const p = ids.has(x.parent_id) ? x.parent_id : "root"; (kids[p] = kids[p] || []).push(x); });
+  const out = [];
+  const walk = (p, d) => (kids[p] || []).sort((a, b) => a.start_ns - b.start_ns).forEach(x => { out.push([x, d]); walk(x.span_id, d + 1); });
+  walk("root", 0);
+  return out;
+}
+let TIP = null;
+async function renderTrace(pane, traceId, opts = {}) {
+  pane.innerHTML = `<div class="empty">Loading trace…</div>`;
+  const t = await api(`/api/trace/${traceId}`);
+  if (!t.spans.length) { pane.innerHTML = `<div class="empty">No spans recorded for this run.</div>`; return; }
+  const t0 = Math.min(...t.spans.map(x => x.start_ns)), t1 = Math.max(...t.spans.map(x => x.end_ns)), total = Math.max(1, t1 - t0);
+  let rows = orderSpans(t.spans);
+  const hideOk = opts.foldChecks;
+  if (hideOk) rows = rows.filter(([x]) => !(x.name.startsWith("check ") && x.status !== "ERROR"));
+  const errors = t.spans.filter(x => x.status === "ERROR" && x.name.startsWith("check "));
+  const lanesUsed = [...new Set(t.spans.map(laneOf))];
+  const head = opts.compact ? "" : `<div class="toolbar"><b>Trace ${esc(traceId.slice(0, 16))}…</b><span class="args">${t.spans.length} spans · ${(total / 1e6).toFixed(1)} ms</span>
+      <div class="spacer"></div>${t.jaeger ? `<a href="${esc(t.jaeger)}" target="_blank" rel="noopener">Open in Jaeger ↗</a>` : `<span class="args">Jaeger: run with --traces jaeger</span>`}</div>`;
+  const stop = errors.length ? `<div class="why">Stopped at <b>${esc(errors[0].name)}</b>: ${esc(errors[0].status_message || "")}</div>` : "";
+  pane.innerHTML = head + stop + `<div class="wf-legend">${lanesUsed.map(l => `<span style="--c:var(--lane-${l})">${LANES[l]}</span>`).join("")}<span>red outline = error</span></div>
+    <div class="wf" role="table">${rows.map(([x, d], i) => {
+      const left = (x.start_ns - t0) / total * 100, width = Math.max(0.4, (x.end_ns - x.start_ns) / total * 100);
+      const lane = laneOf(x), err = x.status === "ERROR";
+      return `<div class="wf-row ${err ? "err" : ""}" role="row" data-i="${i}" style="--c:var(--lane-${lane})">
+        <div class="wf-name" style="padding-left:${d * 12}px"><span class="lane"></span>${err ? "✖ " : ""}${esc(x.name)}</div>
+        <div class="wf-track"><div class="wf-bar" style="left:${left}%;width:${width}%"></div></div>
+        <div class="wf-dur">${((x.end_ns - x.start_ns) / 1e6).toFixed(2)} ms</div></div>`; }).join("")}</div>`;
+  pane.querySelectorAll(".wf-row").forEach(el => {
+    const [x] = rows[+el.dataset.i];
+    el.onmouseenter = e => { TIP = TIP || document.body.appendChild(Object.assign(document.createElement("div"), {className: "wf-tip"}));
+      TIP.textContent = `${x.name} · ${LANES[laneOf(x)]} · ${((x.end_ns - x.start_ns) / 1e6).toFixed(2)} ms${x.status === "ERROR" ? " · " + (x.status_message || "error") : ""}`; TIP.hidden = false; };
+    el.onmousemove = e => { if (TIP) { TIP.style.left = (e.clientX + 12) + "px"; TIP.style.top = (e.clientY + 12) + "px"; } };
+    el.onmouseleave = () => { if (TIP) TIP.hidden = true; };
+    el.onclick = () => {
+      const open = el.nextElementSibling && el.nextElementSibling.classList.contains("wf-detail");
+      pane.querySelectorAll(".wf-detail").forEach(d => d.remove()); pane.querySelectorAll(".wf-row.sel").forEach(r => r.classList.remove("sel"));
+      if (open) return;
+      el.classList.add("sel");
+      const d = document.createElement("div"); d.className = "wf-detail";
+      d.textContent = `${x.name}  [${x.kind}, ${x.service}/${x.scope}]  status ${x.status}${x.status_message ? ": " + x.status_message : ""}\n` +
+        Object.entries(x.attributes).map(([k, v]) => `${k} = ${Array.isArray(v) ? v.join(", ") : v}`).join("\n");
+      el.after(d);
+    };
+  });
+}
+
+// ---------------------------------------------------------------- token inspector
+const KINDS = {"sign-in": "Sign-in token (Keycloak, authorization code + PKCE)", "token-exchange": "RFC 8693 token exchange", "dev-issue": "Issued by the dev IdP"};
+function actChain(a) { const out = []; while (a && a.sub) { out.push(a.sub); a = a.act; } return out; }
+function audList(c) { return Array.isArray(c.aud) ? c.aud : (c.aud ? [c.aud] : []); }
+function scopeList(c) { return String(c.scope || "").split(" ").filter(Boolean); }
+function diffHtml(ev, parent) {
+  if (!parent) return "";
+  const pc = parent.claims, c = ev.claims, out = [];
+  const ps = new Set(scopeList(pc)), cs = new Set(scopeList(c));
+  [...ps].filter(x => !cs.has(x)).forEach(x => out.push(`<span class="diff del">− ${esc(x)}</span>`));
+  [...cs].filter(x => !ps.has(x)).forEach(x => out.push(`<span class="diff add">+ ${esc(x)}</span>`));
+  const pa = audList(pc).join(" "), ca = audList(c).join(" ");
+  if (pa !== ca) out.push(`<span class="diff chg">aud → ${esc(ca)}</span>`);
+  const chain = actChain(c.act);
+  if (chain.length) out.push(`<span class="diff add">act: ${esc(chain.join(" ← "))}</span>`);
+  out.push(`<span class="diff chg">lifetime ${Math.round((c.exp - c.iat) / 60)} min (was ${Math.round((pc.exp - pc.iat) / 60)})</span>`);
+  return `<div style="margin:6px 0"><span class="note">Changed from the token it was exchanged from: </span>${out.join("")}</div>`;
+}
+async function renderTokens(pane, traceId, opts = {}) {
+  pane.innerHTML = `<div class="empty">Loading tokens…</div>`;
+  const t = await api(`/api/tokens?trace_id=${encodeURIComponent(traceId)}`);
+  if (!t.events.length) { pane.innerHTML = `<div class="empty">No tokens recorded for this run.</div>`; return; }
+  const byId = Object.fromEntries(t.events.map(e => [e.id, e]));
+  const intro = opts.compact ? "" : `<div class="why">Every token issued for this request, in order. ${t.idp === "keycloak"
+    ? "Keycloak issued all of them; the gateway only has Keycloak's public keys."
+    : "Dev mode: a local token service plays the identity provider (start with --idp keycloak for the real one)."} Tokens stay in memory only and expire in minutes.</div>`;
+  pane.innerHTML = intro + t.events.map((e, i) => {
+    const c = e.claims, parent = byId[e.parent], chain = actChain(c.act), pv = e.preview || {};
+    const kv = [["person", c.preferred_username || c.sub], ["audience", audList(c).join(", ")], ["scope", c.scope],
+      ["acting agent", chain.length ? chain.join(" ← ") : `none (${c.azp || c.client_id || "?"}: the person's own token)`],
+      ["issued to", c.azp || c.client_id], ["issuer", c.iss], ["header", `typ=${e.header.typ} alg=${e.header.alg} kid=${String(e.header.kid).slice(0, 18)}`],
+      ["expires", new Date(c.exp * 1000).toLocaleTimeString()]];
+    if (opts.compact) return `<div class="tok"><b>${i + 1}. ${esc(e.agent || "person")}</b> <span class="args">${esc(c.scope)}</span></div>${i < t.events.length - 1 ? `<div class="tok-arrow">↓ exchange</div>` : ""}`;
+    return `<div class="tok" data-id="${esc(e.id)}"><h3>${i + 1}. ${esc(KINDS[e.kind] || e.kind)}${e.agent ? ` → <span class="agent-tag">${esc(e.agent)}</span>` : ""}</h3>
+      ${e.note ? `<div class="note">${esc(e.note)}</div>` : ""}${e.requested_scopes ? `<div class="args">requested by ${esc(e.requester)}: ${esc(e.requested_scopes.join(" "))}</div>` : ""}
+      ${diffHtml(e, parent)}
+      <div class="kv">${kv.map(([k, v]) => `<div class="k">${k}</div><div class="v">${esc(v)}</div>`).join("")}</div>
+      <div class="jwt" title="the JWT, truncated: header . payload . signature (the full token never leaves the server)"><span class="h">${esc(pv.header)}…</span>.<span class="p">${esc(pv.payload)}…</span>.<span class="s">${esc(pv.signature)}…</span></div>
+      <details><summary class="args">decoded header and claims</summary><pre class="wf-detail">${esc(JSON.stringify({header: e.header, claims: c}, null, 2))}</pre></details>
+      <div class="row"><button data-validate="${esc(e.id)}">Validate at the gateway</button><span class="note">runs the gateway's own checks on this token</span></div>
+      <div class="vres"></div></div>${i < t.events.length - 1 ? `<div class="tok-arrow">↓ token exchange (RFC 8693)</div>` : ""}`;
+  }).join("");
+  pane.querySelectorAll("[data-validate]").forEach(b => b.onclick = async () => {
+    const r = await api(`/api/tokens/${b.dataset.validate}/validate`, {method: "POST"});
+    b.closest(".tok").querySelector(".vres").innerHTML = `<div class="row"><span class="badge ${r.valid ? "b-executed" : "b-denied"}">${r.valid ? "valid for tool calls" : "not valid for tool calls"}</span></div>
+      <ul class="checks">${r.checks.map(c => `<li><span class="${c.ok ? "ok" : "no"}">${c.ok ? "✔" : "✖"}</span> <b>${esc(c.check)}</b> — ${esc(c.detail)}</li>`).join("")}</ul>`;
+  });
+}
+
+// ---------------------------------------------------------------- allowed vs denied
+async function runPair() {
+  const id = $("#pair").value, cmp = $("#cmp");
+  cmp.innerHTML = `<div class="empty">Running both requests…</div><div></div>`;
+  let r;
+  try { r = await api(`/api/compare/${id}`, {method: "POST"}); }
+  catch (e) {
+    if (e instanceof LoginNeeded) { cmp.innerHTML = ""; cmp.appendChild(signInPrompt(e.d, runPair)); return; }
+    cmp.innerHTML = `<div class="empty">${esc(e.message)}</div><div></div>`; return;
+  }
+  cmp.innerHTML = ["allowed", "denied"].map(side => {
+    const x = r[side], run = x.run, ok = side === "allowed";
+    return `<div class="panel" data-side="${side}"><h2>${ok ? "✔ Went through" : "✖ Stopped"}: ${esc(x.scenario.title)}</h2>
+      <div class="note">${esc(x.scenario.why)}</div>
+      <div class="why" style="margin-top:8px"><b>Request:</b> ${esc(run.message)}<br><b>Answer:</b> ${esc(run.final_text)}</div>
+      ${run.calls.map(callCard).join("")}
+      <h3 style="font-size:13px;margin:14px 0 4px">Trace</h3><div class="trace"></div>
+      <h3 style="font-size:13px;margin:14px 0 4px">Tokens</h3><div class="toks"></div></div>`;
+  }).join("");
+  for (const side of ["allowed", "denied"]) {
+    const el = cmp.querySelector(`[data-side=${side}]`), run = r[side].run;
+    renderTrace(el.querySelector(".trace"), run.trace_id, {compact: true, foldChecks: true});
+    renderTokens(el.querySelector(".toks"), run.trace_id, {compact: true});
+  }
+}
+
+// ---------------------------------------------------------------- scores (scored testing)
+let SCORE_ADAPTER = null, POLL = null;
+const pct = v => v === null || v === undefined || Number.isNaN(v) ? "n/a" : Math.round(v * 100) + "%";
+async function renderScores() {
+  const box = $("#scores"), d = await api("/api/evals");
+  const latest = d.latest || [];
+  SCORE_ADAPTER = SCORE_ADAPTER || (latest.find(x => x.adapter === "scripted") || latest[0] || {}).adapter;
+  const cur = latest.find(x => x.adapter === SCORE_ADAPTER);
+  const adapters = ["scripted", "scripted-remote", "adk-scripted"].concat(d.live.claude ? ["claude"] : [], d.live.bedrock ? ["bedrock"] : []);
+  const job = d.job || {};
+  let html = `<div class="panel"><div class="toolbar"><b>Scored testing of the agentic solution</b><div class="spacer"></div>
+      <label class="ctl">Adapter <select id="ev-adapter">${adapters.map(a => `<option ${a === SCORE_ADAPTER ? "selected" : ""}>${a}</option>`).join("")}</select></label>
+      <label class="ctl">Trials <input id="ev-trials" type="number" min="1" max="10" value="${d.live.claude ? 3 : 1}" style="width:60px"></label>
+      ${d.live.claude ? `<label class="ctl"><input type="checkbox" id="ev-judge"> LLM judge</label>` : ""}
+      <button class="primary" id="ev-run" ${job.state === "running" ? "disabled" : ""}>Run suite</button></div>
+    <div class="note">Control cases: the scripted model misbehaves on purpose and the gateway must hold (100% gate). Behavior cases: does the agent do the right thing (pass@1 ≥ 90%). With N trials, pass^N is the chance all N tries succeed (τ-bench). Live adapters skip control cases.${d.live.claude ? "" : " Set ANTHROPIC_API_KEY to score live Claude."}</div>
+    ${job.state === "running" ? `<div class="progress"><div style="width:${Math.round(100 * job.done / job.total)}%"></div></div><div class="args">${job.adapter}: ${job.done}/${job.total} cases · last ${esc(job.last || "")}${job.failed.length ? " · failing: " + esc(job.failed.join(", ")) : ""}</div>` : ""}
+    ${job.state === "error" ? `<div class="why">Run failed: ${esc(job.error)}</div>` : ""}</div>`;
+  if (!latest.length) { box.innerHTML = html + `<div class="empty">No reports yet. Run the suite.</div>`; bindScores(); return; }
+  html += `<div class="panel"><div class="toolbar">${latest.map(x => `<button class="${x.adapter === SCORE_ADAPTER ? "primary" : ""}" data-adapter="${x.adapter}">${esc(x.adapter)}</button>`).join("")}</div>`;
+  if (cur) {
+    const sc = cur.scores || {}, k = cur.trials || 1;
+    const tiles = [["Gate", cur.gate_passed ? "✔ PASS" : "✖ FAIL", "control + critical 100%, behavior ≥ 90%"],
+      ["Control", pct(sc.control_pass_rate), "gateway holds under misbehaving models"], ["Behavior pass@1", pct(sc.behavior_pass_at_1), "mean success per try"],
+      [`Behavior pass^${k}`, pct(sc[`behavior_pass_hat_${k}`]), `all ${k} tries succeed`], ["Multi-agent", pct(sc.multi_agent_pass_rate), "orchestrator + specialists cases"],
+      ["LLM judge", pct(sc.quality_judge_pass_rate), "rubric, when run with a judge"], ["Median latency", sc.latency_ms_median != null ? Math.round(sc.latency_ms_median) + " ms" : "n/a", "per case run"],
+      ["Tokens", ((sc.tokens || {}).input_tokens || 0) + (((sc.tokens || {}).output_tokens) || 0) ? `${sc.tokens.input_tokens}/${sc.tokens.output_tokens}` : "0", "model input / output"]];
+    html += `<div class="args">${esc(cur.adapter)} · ${esc(cur.model_id)} · ${esc(cur.started_at)} · ${k} trial(s) per case</div>
+      <div class="tiles">${tiles.map(([l, v, n]) => `<div class="tile"><div class="l">${l}</div><div class="v">${esc(v)}</div><div class="n">${n}</div></div>`).join("")}</div><div id="ev-cases"></div>`;
+  }
+  html += `</div><div class="panel"><b>History</b><table><thead><tr><th>When</th><th>Adapter</th><th>Trials</th><th>Gate</th><th>Control</th><th>pass@1</th><th>pass^k</th><th>Multi-agent</th></tr></thead><tbody>${
+    (d.history || []).slice().reverse().slice(0, 15).map(h => `<tr><td>${esc(h.started_at)}</td><td>${esc(h.adapter)}</td><td>${h.trials || 1}</td><td>${h.gate_passed ? "✔ pass" : "✖ fail"}</td>
+      <td>${pct((h.scores || {}).control_pass_rate)}</td><td>${pct((h.scores || {}).behavior_pass_at_1)}</td><td>${pct((h.scores || {})[`behavior_pass_hat_${h.trials || 1}`])}</td><td>${pct((h.scores || {}).multi_agent_pass_rate)}</td></tr>`).join("")}</tbody></table></div>`;
+  box.innerHTML = html;
+  bindScores();
+  if (cur) {
+    const rep = await api(`/api/evals/report/${cur.adapter}`);
+    $("#ev-cases").innerHTML = `<table><thead><tr><th>Case</th><th>Layer</th><th>Agents</th><th>Result</th><th>pass^k</th><th>ms</th><th>What failed</th></tr></thead><tbody>${
+      rep.results.map(r => `<tr title="${esc(r.description || "")}"><td class="mono">${esc(r.case_id)}</td><td>${esc(r.layer)}${r.severity === "critical" ? " · critical" : ""}</td><td>${r.mode === "multi" ? "multi" : "single"}</td>
+        <td>${r.skipped ? `<span class="args">skipped</span>` : `${r.passed ? "✔" : "✖"} ${r.successes}/${r.trials}`}</td><td>${r.skipped ? "" : pct(r.pass_hat_k)}</td>
+        <td>${r.latency_ms != null ? Math.round(r.latency_ms) : ""}</td><td class="args">${esc(r.skipped || (r.checks || []).filter(c => !c.passed).map(c => c.name + (c.detail ? " (" + c.detail + ")" : "")).join("; "))}</td></tr>`).join("")}</tbody></table>`;
+  }
+}
+function bindScores() {
+  document.querySelectorAll("[data-adapter]").forEach(b => b.onclick = () => { SCORE_ADAPTER = b.dataset.adapter; renderScores(); });
+  const run = $("#ev-run");
+  if (run) run.onclick = async () => {
+    try { await api("/api/evals/run", {method: "POST", body: JSON.stringify({adapter: $("#ev-adapter").value, trials: +$("#ev-trials").value, judge: !!($("#ev-judge") || {}).checked})}); }
+    catch (e) { alert(e.message); return; }
+    SCORE_ADAPTER = $("#ev-adapter").value;
+    clearInterval(POLL);
+    POLL = setInterval(async () => { const d = await api("/api/evals"); await renderScores(); if (d.job.state !== "running") clearInterval(POLL); }, 1200);
+    renderScores();
+  };
+}
+// ------------------------------------------------------------------ registry
+
+const TIER_ORDER = {READ: 0, LOW: 1, MEDIUM: 2, HIGH: 3};
+
+async function renderRegistry() {
+  const d = await api("/api/registry").catch(e => ({error: String(e)}));
+  if (d.error) { $("#registry").innerHTML = `<div class="empty">${esc(d.error)}</div>`; return; }
+  const tools = [...d.tools].sort((a, b) => TIER_ORDER[a.risk_tier] - TIER_ORDER[b.risk_tier]);
+  const toolRows = tools.map(t => `<tr>
+      <td class="mono">${esc(t.name)}</td>
+      <td><span class="badge t-${esc(t.risk_tier)}">${esc(t.risk_tier)}</span></td>
+      <td class="mono">${esc(t.required_scope)}</td>
+      <td><span class="badge d-${esc(t.policy.decision)}">${esc(t.policy.decision.replace("_", " "))}</span></td>
+      <td>${t.side_effect ? "yes" : "no"}</td>
+      <td class="mono">${t.data_classes.length ? esc(t.data_classes.join(", ")) : "—"}</td>
+      <td>${esc(t.description)}</td></tr>`).join("");
+
+  const agents = (d.agents && d.agents.list) || [];
+  const agentRows = agents.map(a => `<div class="deleg-row">
+      <div><div class="who">${esc(a.id)}</div><div class="n" style="font-size:11px;color:var(--muted)">${esc(a.description || a.name)}</div></div>
+      <div>
+        <div class="what">${a.tools.length
+          ? a.tools.map(t => `<span class="tagsm">${esc(t)}</span>`).join("")
+          : `<span class="tagsm none">no tools — cannot act directly</span>`}</div>
+        <div class="what" style="margin-top:5px">
+          <span style="font-size:11px;color:var(--muted)">delegated by</span>
+          ${a.delegated_by.map(x => `<span class="tagsm">${esc(x)}</span>`).join("")}
+          ${a.may_delegate_to.length ? `<span style="font-size:11px;color:var(--muted);margin-left:6px">may delegate to</span>` + a.may_delegate_to.map(x => `<span class="tagsm">${esc(x)}</span>`).join("") : ""}
+        </div>
+      </div></div>`).join("");
+
+  const roleRows = Object.entries(d.role_scopes).map(([r, s]) => `<div class="deleg-row">
+      <div class="who">${esc(r.replace("_", " "))}</div>
+      <div class="what">${s.map(x => `<span class="tagsm">${esc(x)}</span>`).join("")}</div></div>`).join("");
+
+  $("#registry").innerHTML = `
+    <div class="sheet">
+      <h2>Tool registry</h2>
+      <div class="note">The gateway's own catalogue, read from <code class="mono">/v1/authority</code>. A tool
+        that is not in this list is refused at stage 3 — the model cannot invent one.</div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Tool</th><th>Risk</th><th>Scope</th><th>Baseline</th><th>Side effect</th><th>Data</th><th>What it does</th></tr></thead>
+        <tbody>${toolRows}</tbody></table></div>
+    </div>
+    <div class="sheet">
+      <h2>Agent registry</h2>
+      <div class="note">Checked on every call <em>independently of token scopes</em>: scopes say what the
+        person allowed, this says what the agent is for. Max delegation depth
+        <b>${esc(d.agents ? d.agents.max_delegation_depth : "—")}</b>.</div>
+      <div class="deleg">${agentRows || `<div class="empty">This gateway has no agent registry, so only token scopes apply.</div>`}</div>
+    </div>
+    <div class="sheet">
+      <h2>Scopes each role grants</h2>
+      <div class="note">A token can be narrowed below its role, never widened above it.</div>
+      <div class="deleg">${roleRows}</div>
+    </div>`;
+}
+
+// ------------------------------------------------------------------ policy
+
+function whenText(w) {
+  if (!w || !Object.keys(w).length) return "";
+  const f = w.field || w.fact_field || "";
+  const ops = {gt: ">", lt: "<", gte: "≥", lte: "≤", eq: "=", not_in: "not in", contains_any: "contains any of"};
+  const op = ops[w.op] || w.op || "";
+  let v = w.value !== undefined ? w.value : (w.fact ? "fact:" + w.fact : "");
+  if (Array.isArray(v)) v = v.map(x => `"${x}"`).join(", ");
+  return `${w.fact_field ? "fact " : ""}${f} ${op} ${v}`.trim();
+}
+
+async function renderPolicy() {
+  const d = await api("/api/policy").catch(e => ({error: String(e)}));
+  if (d.error) { $("#policy").innerHTML = `<div class="empty">${esc(d.error)}</div>`; return; }
+  const p = d.policy;
+  const hrs = (p.approval_ttl_seconds / 3600).toFixed(p.approval_ttl_seconds % 3600 ? 1 : 0);
+  const tools = [...d.tools].sort((a, b) => TIER_ORDER[b.risk_tier] - TIER_ORDER[a.risk_tier]);
+
+  const toolBlocks = tools.map(t => `<div class="card">
+      <h3>${esc(t.name)}
+        <span class="badge t-${esc(t.risk_tier)}" style="font-family:inherit">${esc(t.risk_tier)}</span>
+        <span class="badge d-${esc(t.policy.decision)}" style="font-family:inherit">${esc(t.policy.decision.replace("_", " "))}</span>
+      </h3>
+      <div style="font-size:12px;color:var(--muted)">${esc(t.policy.reason || "")}</div>
+      ${t.policy.rules.map(r => `<div class="rule d-${esc(r.decision)}">
+          <div><span class="rid">${esc(r.id)}</span>
+            <span class="badge d-${esc(r.decision)}" style="font-family:inherit">${esc(String(r.decision).replace("_", " "))}</span></div>
+          ${whenText(r.when) ? `<code>when ${esc(whenText(r.when))}</code>` : ""}
+          <div style="font-size:12px;margin-top:2px">${esc(r.reason || "")}</div>
+        </div>`).join("")}
+      ${t.policy.rules.length ? "" : `<div style="font-size:12px;color:var(--muted);margin-top:6px">No extra rules — the baseline stands.</div>`}
+    </div>`).join("");
+
+  const velRows = p.velocity.map(v => `<tr>
+      <td class="mono">${esc(v.id)}</td><td class="mono">${esc(v.tool)}</td>
+      <td>per ${esc(v.per)}</td>
+      <td class="mono">${v.max_count !== null && v.max_count !== undefined ? esc(v.max_count) + " calls" : "—"}</td>
+      <td class="mono">${v.max_sum ? money(v.max_sum) + (v.sum_field ? " " + esc(v.sum_field) : "") : "—"}</td>
+      <td class="mono">${(v.window_seconds / 3600).toFixed(0)} h</td>
+      <td>${esc(v.reason || "")}</td></tr>`).join("");
+
+  $("#policy").innerHTML = `
+    <div class="sheet">
+      <h2>Policy in force at this gateway</h2>
+      <div class="note">Version <b class="mono">${esc(p.version)}</b>, read live from the gateway rather than
+        from a file this console keeps. Rules can only tighten a tool's baseline
+        (allow → needs approval → deny), so a mistaken rule cannot widen access.</div>
+      <div class="tiers">
+        <span class="chip">default <b>${esc(p.default_decision)}</b></span>
+        <span class="chip">max ${esc(p.max_tool_calls_per_run)} tool calls per run</span>
+        <span class="chip">max ${esc(p.max_high_risk_calls_per_run)} high-risk call per run</span>
+        <span class="chip">risk ceiling ${esc(p.max_risk_tier)}</span>
+        <span class="chip">approvals expire after ${esc(hrs)} h</span>
+      </div>
+    </div>
+    <div class="sheet">
+      <h2>Per-tool decision and rules</h2>
+      <div class="note">Values written <code class="mono">fact …</code> are looked up by the gateway in a system
+        of record — never taken from what the model said.</div>
+      ${toolBlocks}
+    </div>
+    <div class="sheet">
+      <h2>Cross-run limits</h2>
+      <div class="note">Counted across runs and reserved atomically, so splitting one action into several
+        requests does not get under the cap. A pending approval still holds its reservation.</div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Limit</th><th>Tool</th><th>Counted</th><th>Max calls</th><th>Max total</th><th>Window</th><th>Why</th></tr></thead>
+        <tbody>${velRows}</tbody></table></div>
+    </div>`;
+}
+
+// ------------------------------------------------------------------ knowledge graph
+
+const KG_STYLE = {
+  "Tool":                     {hue: "var(--lane-agent)",   shape: "circle"},
+  "Policy rule":              {hue: "var(--lane-console)",  shape: "square"},
+  "Velocity limit":           {hue: "var(--lane-idp)",      shape: "diamond"},
+  "Agent":                    {hue: "var(--lane-console)",  shape: "hex"},
+  "Role":                     {hue: "var(--lane-idp)",      shape: "triangle"},
+  "OAuth scope":              {hue: "", shape: "square"},
+  "Audit event":              {hue: "", shape: "circle"},
+  "Outcome":                  {hue: "var(--lane-agent)",    shape: "diamond"},
+  "Stage that stopped a call":{hue: "var(--lane-console)",  shape: "square"}
+};
+function kgStyle(group) { return KG_STYLE[group] || {hue: "var(--lane-idp)", shape: "circle"}; }
+
+function kgShape(kind, r) {
+  if (kind === "square") return `M${-r},${-r}h${2 * r}v${2 * r}h${-2 * r}Z`;
+  if (kind === "diamond") return `M0,${-r * 1.3}L${r * 1.3},0L0,${r * 1.3}L${-r * 1.3},0Z`;
+  if (kind === "triangle") return `M0,${-r * 1.3}L${r * 1.2},${r * .85}L${-r * 1.2},${r * .85}Z`;
+  if (kind === "hex") {
+    const p = []; for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3;
+      p.push(`${(r * 1.12 * Math.cos(a)).toFixed(2)},${(r * 1.12 * Math.sin(a)).toFixed(2)}`); }
+    return "M" + p.join("L") + "Z";
+  }
+  const q = []; for (let i = 0; i < 22; i++) { const a = i / 22 * Math.PI * 2;
+    q.push(`${(r * Math.cos(a)).toFixed(2)},${(r * Math.sin(a)).toFixed(2)}`); }
+  return "M" + q.join("L") + "Z";
+}
+
+// A small spring/repulsion layout. Seeded deterministically from node order, so the same graph
+// always lays out the same way — a demo you narrate should not rearrange itself between runs.
+function kgLayout(nodes, edges, W, H, boxOf) {
+  const idx = {}; nodes.forEach(n => idx[n.id] = n);
+  const L = edges.map(e => ({s: idx[e.s], t: idx[e.t]})).filter(l => l.s && l.t);
+  const R = Math.min(W, H) * 0.34;
+  nodes.forEach((n, i) => {
+    const a = i / nodes.length * Math.PI * 2;
+    n.x = W / 2 + Math.cos(a) * R; n.y = H / 2 + Math.sin(a) * R; n.vx = 0; n.vy = 0;
+  });
+  const ITER = 320;
+  for (let step = 0; step < ITER; step++) {
+    const cool = 1 - step / ITER;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      let dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+      if (d2 < 0.5) { dx = (i % 2 ? 0.7 : -0.7); dy = (j % 2 ? 0.7 : -0.7); d2 = dx * dx + dy * dy; }
+      const d = Math.sqrt(d2), f = 3000 / d2;
+      const fx = dx / d * f, fy = dy / d * f;
+      a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+    }
+    L.forEach(l => {
+      const dx = l.t.x - l.s.x, dy = l.t.y - l.s.y, d = Math.max(1, Math.hypot(dx, dy));
+      const f = (d - 82) * 0.055, fx = dx / d * f, fy = dy / d * f;
+      l.s.vx += fx; l.s.vy += fy; l.t.vx -= fx; l.t.vy -= fy;
+    });
+    nodes.forEach(n => {
+      n.vx += (W / 2 - n.x) * 0.007; n.vy += (H / 2 - n.y) * 0.010;
+      n.x += Math.max(-20, Math.min(20, n.vx * cool));
+      n.y += Math.max(-20, Math.min(20, n.vy * cool));
+      n.vx *= 0.80; n.vy *= 0.80;
+      n.x = Math.max(30, Math.min(W - 30, n.x)); n.y = Math.max(26, Math.min(H - 28, n.y));
+    });
+  }
+  // The dots are ~14px wide and their labels ~100px, so the force pass above — which only knows
+  // centres — leaves labels on top of each other. Separate the label boxes directly, pushing each
+  // overlapping pair along whichever axis they overlap least.
+  for (let pass = 0; pass < 200; pass++) {
+    let hits = 0;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j], A = boxOf(a), B = boxOf(b);
+      const ox = (A.w + B.w) / 2 + 8 - Math.abs(b.x - a.x);
+      const oy = (A.h + B.h) / 2 + 4 - Math.abs(b.y - a.y);
+      if (ox <= 0 || oy <= 0) continue;
+      hits++;
+      if (ox < oy) { const s = (b.x >= a.x ? 1 : -1) * ox / 2; a.x -= s; b.x += s; }
+      else { const s = (b.y >= a.y ? 1 : -1) * oy / 2; a.y -= s; b.y += s; }
+    }
+    nodes.forEach(n => {
+      n.x = Math.max(30, Math.min(W - 30, n.x)); n.y = Math.max(26, Math.min(H - 28, n.y));
+    });
+    if (!hits) break;
+  }
+  return L;
+}
+
+let KG = null, KG_LAYER = "governance", KG_SEL = null;
+
+async function renderGraph(force) {
+  if (!KG || force) KG = await api("/api/graph").catch(e => ({error: String(e)}));
+  if (KG.error) { $("#kgpanel").innerHTML = `<div class="empty">${esc(KG.error)}</div>`; return; }
+  const m = KG.meta;
+  $("#kgmeta").innerHTML = `Built from this gateway, not from a file: <b>${esc(m.tools)}</b> tools,
+    <b>${esc(m.agents)}</b> agents, policy <b class="mono">${esc(m.policy_version)}</b>,
+    <b>${esc(m.audit_events)}</b> audit events${m.intact === true ? `, hash chain <b class="chain ok">intact</b>` : ""}.
+    Identity provider: <b>${esc(m.idp)}</b>.`;
+
+  $("#kglayers").innerHTML = Object.entries(KG.layers).map(([k, v]) =>
+    `<button data-kg="${k}" class="${k === KG_LAYER ? "active" : ""}">${esc(v.name)}</button>`).join("");
+  document.querySelectorAll("#kglayers button").forEach(b => b.onclick = () => {
+    KG_LAYER = b.dataset.kg; KG_SEL = null; renderGraph(false);
+  });
+
+  const maxFired = Math.max(1, ...KG.checks.map(c => c.fired));
+  $("#kgchecks").innerHTML = KG.checks.map(c => `<div class="kgchk${c.fired ? "" : " quiet"}">
+      <span class="i">${c.n < 10 ? "0" : ""}${c.n}</span>
+      <span>${esc(c.label)}</span>
+      <span class="f"><b>${c.fired || 0}</b><i style="width:${c.fired ? Math.max(4, c.fired / maxFired * 64) : 0}px"></i></span>
+    </div>`).join("");
+
+  drawGraph();
+}
+
+function drawGraph() {
+  const L = KG.layers[KG_LAYER];
+  $("#kgblurb").textContent = L.blurb;
+  const svg = $("#kgsvg");
+  const box = svg.getBoundingClientRect();
+  const W = Math.max(320, box.width), H = Math.max(360, box.height || 540);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+  const nodes = L.nodes.map(n => ({...n}));
+  const short = n => n.label.length > 18 ? n.label.slice(0, 17) + "…" : n.label;
+  const degPre = {};
+  L.edges.forEach(e => { degPre[e.s] = (degPre[e.s] || 0) + 1; degPre[e.t] = (degPre[e.t] || 0) + 1; });
+  const rPre = n => n.count ? 6 + Math.sqrt(n.count / Math.max(1, KG.meta.audit_events)) * 13
+                            : 7 + Math.min(4, (degPre[n.id] || 0) * 0.5);
+  // label ~5.7px per character at 10.5px; the box has to cover the dot and the line under it
+  const boxOf = n => ({w: Math.max(2 * rPre(n), short(n).length * 5.7), h: 2 * rPre(n) + 22});
+  const links = kgLayout(nodes, L.edges, W, H, boxOf);
+  const relOf = {};
+  L.edges.forEach(e => { relOf[e.s + " " + e.t] = e.rel; });
+
+  const deg = {};
+  links.forEach(l => { deg[l.s.id] = (deg[l.s.id] || 0) + 1; deg[l.t.id] = (deg[l.t.id] || 0) + 1; });
+  const rOf = n => n.count ? 6 + Math.sqrt(n.count / Math.max(1, KG.meta.audit_events)) * 13
+                           : 7 + Math.min(4, (deg[n.id] || 0) * 0.5);
+
+  const groups = [];
+  nodes.forEach(n => { if (!groups.includes(n.group)) groups.push(n.group); });
+
+  const parts = [];
+  links.forEach((l, i) => parts.push(`<line class="kgedge" data-a="${esc(l.s.id)}" data-b="${esc(l.t.id)}" x1="${l.s.x.toFixed(1)}" y1="${l.s.y.toFixed(1)}" x2="${l.t.x.toFixed(1)}" y2="${l.t.y.toFixed(1)}"></line>`));
+  nodes.forEach(n => {
+    const st = kgStyle(n.group), r = rOf(n);
+    const fill = st.hue || "var(--bg)";
+    const stroke = st.hue ? "var(--panel)" : "var(--muted)";
+    parts.push(`<path class="kgnode" data-id="${esc(n.id)}" tabindex="0" role="button" d="${kgShape(st.shape, r)}"
+      transform="translate(${n.x.toFixed(1)},${n.y.toFixed(1)})" fill="${fill}" stroke="${stroke}" stroke-width="${st.hue ? 2 : 1.3}"><title>${esc(n.label)} — ${esc(n.group)}</title></path>`);
+  });
+  nodes.forEach(n => {
+    parts.push(`<text class="kglabel" data-id="${esc(n.id)}" text-anchor="middle" x="${n.x.toFixed(1)}" y="${(n.y + rOf(n) + 11).toFixed(1)}">${esc(short(n))}</text>`);
+  });
+  svg.innerHTML = parts.join("");
+
+  $("#kglegend").innerHTML = groups.map(g => {
+    const st = kgStyle(g);
+    return `<span><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="${kgShape(st.shape, 5.4)}"
+      fill="${st.hue || "var(--bg)"}" stroke="${st.hue ? "none" : "var(--muted)"}" stroke-width="1.3"></path></svg>${esc(g)}</span>`;
+  }).join("");
+
+  svg.querySelectorAll(".kgnode").forEach(el => {
+    el.onclick = () => kgPick(el.dataset.id, nodes, L.edges);
+    el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); kgPick(el.dataset.id, nodes, L.edges); } };
+  });
+  $("#kgq").oninput = () => kgFilter();
+  kgFilter();
+  const seed = KG_SEL || [...nodes].sort((a, b) => (deg[b.id] || 0) - (deg[a.id] || 0))[0]?.id;
+  if (seed) kgPick(seed, nodes, L.edges);
+}
+
+function kgFilter() {
+  const q = ($("#kgq").value || "").trim().toLowerCase();
+  const svg = $("#kgsvg");
+  const labels = {};
+  svg.querySelectorAll(".kglabel").forEach(t => labels[t.dataset.id] = (t.textContent || "").toLowerCase());
+  const match = id => !q || (labels[id] || "").includes(q) || id.toLowerCase().includes(q);
+  svg.querySelectorAll(".kgnode").forEach(n => n.classList.toggle("kgdim", !match(n.dataset.id)));
+  svg.querySelectorAll(".kglabel").forEach(n => n.classList.toggle("kgdim", !match(n.dataset.id)));
+  svg.querySelectorAll(".kgedge").forEach(e =>
+    e.classList.toggle("kgdim", !(match(e.dataset.a) && match(e.dataset.b))));
+}
+
+function kgPick(id, nodes, edges) {
+  KG_SEL = id;
+  const svg = $("#kgsvg");
+  svg.querySelectorAll(".kgnode").forEach(n => {
+    const on = n.dataset.id === id;
+    n.setAttribute("stroke", on ? "var(--ink)" : (kgStyle(nodes.find(x => x.id === n.dataset.id)?.group || "").hue ? "var(--panel)" : "var(--muted)"));
+    n.setAttribute("stroke-width", on ? 2.6 : (kgStyle(nodes.find(x => x.id === n.dataset.id)?.group || "").hue ? 2 : 1.3));
+  });
+  svg.querySelectorAll(".kglabel").forEach(t => t.classList.toggle("on", t.dataset.id === id));
+  svg.querySelectorAll(".kgedge").forEach(e =>
+    e.classList.toggle("on", e.dataset.a === id || e.dataset.b === id));
+
+  const n = nodes.find(x => x.id === id);
+  if (!n) return;
+  const rows = [];
+  if (n.tier) rows.push(["risk tier", `<span class="badge t-${esc(n.tier)}" style="font-family:inherit">${esc(n.tier)}</span>`]);
+  if (n.scope) rows.push(["scope", esc(n.scope)]);
+  if (n.decision) rows.push(["decision", `<span class="badge d-${esc(n.decision)}" style="font-family:inherit">${esc(String(n.decision).replace("_", " "))}</span>`]);
+  if (n.per) rows.push(["limit", esc(n.per)]);
+  if (typeof n.count === "number") rows.push(["times seen", esc(n.count)]);
+
+  const rel = [];
+  edges.forEach(e => {
+    if (e.s === id) { const o = nodes.find(x => x.id === e.t); if (o) rel.push([e.rel, o]); }
+    else if (e.t === id) { const o = nodes.find(x => x.id === e.s); if (o) rel.push(["← " + e.rel, o]); }
+  });
+
+  $("#kgpanel").innerHTML = `
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">${esc(n.group)}</div>
+    <h3 style="margin:4px 0 0;font-size:15px;word-break:break-word">${esc(n.label)}</h3>
+    ${n.desc ? `<div style="font-size:12.5px;color:var(--muted);margin-top:6px">${esc(n.desc)}</div>` : ""}
+    ${rows.length ? `<div class="kv" style="margin-top:10px;font-size:12px">${rows.map(r => `<div class="n">${r[0]}</div><div>${r[1]}</div>`).join("")}</div>` : ""}
+    <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">${rel.length} connection${rel.length === 1 ? "" : "s"}</div>
+      ${rel.length ? rel.map(r => `<button class="chip" data-go="${esc(r[1].id)}" style="display:block;width:100%;text-align:left;margin-bottom:4px;border-radius:6px">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${esc(r[0])}</span> ${esc(r[1].label)}</button>`).join("")
+        : `<div style="font-size:12px;color:var(--muted)">Nothing links to this node in this layer.</div>`}
+    </div>`;
+  $("#kgpanel").querySelectorAll("button[data-go]").forEach(b =>
+    b.onclick = () => kgPick(b.dataset.go, nodes, edges));
+}
+
+function switchView(name) {
+  document.querySelectorAll(".views button").forEach(b => b.classList.toggle("active", b.dataset.view === name));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
+  if (name === "scores") renderScores();
+  if (name === "registry") renderRegistry();
+  if (name === "policy") renderPolicy();
+  if (name === "graph") renderGraph(true);
+}
+
+async function init() {
+  CFG = await api("/api/config");
+  // All five roles are selectable -- supervisor and compliance have little to nothing in
+  // AGENT_SCOPES, so picking them demonstrates the scope stage refusing the agent's own
+  // request live, rather than hiding the option and proving nothing.
+  $("#principal").innerHTML = CFG.principals
+    .map(p => `<option value="${p.key}">${esc(p.name)} (${esc(p.role.replace("_", " "))})</option>`).join("");
+  const labels = {scripted: "Scripted (offline)", claude: "Claude (live)", bedrock: "Bedrock (live)", adk: "Gemini via ADK (live)"};
+  $("#model").innerHTML = Object.entries(CFG.models).filter(([, ok]) => ok).map(([k]) => `<option value="${k}">${labels[k]}</option>`).join("");
+  if (CFG.models.claude) $("#model").value = "claude";
+  const chip = s => `<button class="chip" data-id="${s.id}" title="${esc(s.why)}">${esc(s.title)}</button>`;
+  $("#chips").innerHTML = `<span class="grp">Single agent</span>` + [...CFG.scenarios, ...CFG.extra_demos].map(chip).join("") +
+    `<span class="grp" style="margin-left:6px">Multi-agent</span>` + CFG.multi_scenarios.map(chip).join("");
+  document.querySelectorAll(".views button").forEach(b => b.onclick = () => switchView(b.dataset.view));
+  $("#pair").innerHTML = CFG.compare_pairs.map(p => `<option value="${p.id}">${esc(p.title)}</option>`).join("");
+  $("#runpair").onclick = runPair;
+  if (CFG.jaeger_url) { $("#jaeger").hidden = false; $("#jaeger").href = CFG.jaeger_url; }
+  document.querySelectorAll(".chip").forEach(c => c.onclick = () => runScenario(c.dataset.id));
+  document.querySelectorAll(".tab").forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+  $("#ask").onsubmit = e => { e.preventDefault(); const q = $("#q").value.trim(); $("#q").value = ""; send(q); };
+  if (!CFG.models.claude) $("#q").placeholder = "Scripted mode: use the scenario buttons. Set ANTHROPIC_API_KEY for live chat.";
+  $("#reset").onclick = async () => {
+    await api("/api/reset", {method: "POST"});
+    RUNS.length = 0; SELECTED = null;
+    $("#chat").innerHTML = `<div class="empty">Demo reset. Pending approvals and daily limits cleared; the audit log keeps a reset entry.</div>`;
+    $("#pane-decisions").innerHTML = `<div class="empty">Each tool call the model proposes appears here with every gateway check.</div>`;
+    $("#pane-trace").innerHTML = `<div class="empty">Pick a run in the chat to see its OpenTelemetry trace.</div>`;
+    $("#pane-tokens").innerHTML = `<div class="empty">Pick a run in the chat to see every token issued for it.</div>`;
+    refreshApprovals();
+  };
+  const h = await api("/api/health").catch(() => ({gateway: false}));
+  $("#gwdot").className = "dot " + (h.gateway ? "ok" : "bad");
+  if (CFG.idp.mode === "keycloak") {
+    $("#idpwrap").hidden = false; $("#idpdot").className = "dot " + (h.idp ? "ok" : "bad");
+    $("#idpwrap").title = CFG.idp.issuer;
+    await renderIdbar();
+  }
+  refreshApprovals();
+  refreshControls();
+  setInterval(refreshControls, 5000);
+}
+
+async function refreshControls() {
+  const c = await api("/api/controls").catch(() => ({reachable: false, stop: {global: null, tools: {}, agents: {}}, breakers: {}}));
+  const stops = [];
+  if (c.stop.global) stops.push(`global: ${c.stop.global.reason}`);
+  for (const [k, v] of Object.entries(c.stop.tools || {})) stops.push(`tool ${k}: ${v.reason}`);
+  for (const [k, v] of Object.entries(c.stop.agents || {})) stops.push(`agent ${k}: ${v.reason}`);
+  const openBreakers = Object.entries(c.breakers || {}).filter(([, v]) => v.state !== "closed")
+    .map(([k, v]) => `${k} (${v.state})`);
+  const bad = stops.length > 0 || openBreakers.length > 0;
+  $("#ctrldot").className = "dot " + (!c.reachable ? "skip" : bad ? "bad" : "ok");
+  const lines = [...stops.map(s => `stopped: ${s}`), ...openBreakers.map(b => `breaker: ${b}`)];
+  $("#ctrlwrap").title = lines.length ? lines.join("\n") : "no active stops; all breakers closed";
+}
+init();
+</script>
+</body>
+</html>

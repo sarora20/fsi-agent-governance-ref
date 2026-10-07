@@ -1,0 +1,36 @@
+# Agent registry: what each agent is, which tools it may use, and who may delegate work to it.
+# The gateway enforces this on every call, independently of token scopes (which say what the
+# PERSON allowed). "person" means the agent acts directly for a signed-in human.
+max_delegation_depth: 2   # person -> orchestrator -> specialist
+
+agents:
+  advisor-assist-agent:
+    name: Advisor assistant (single agent)
+    description: One agent with all advisor tools. Used by the single-agent demo and the eval suite.
+    delegated_by: [person]
+    tools: [get_client_profile, get_positions, update_mailing_address, draft_client_email, initiate_wire_transfer]
+
+  orchestrator-agent:
+    name: Orchestrator
+    description: Plans the request and hands each part to a specialist. Calls no tools itself.
+    delegated_by: [person]
+    may_delegate_to: [accounts-agent, payments-agent, comms-agent]
+    tools: []
+
+  accounts-agent:
+    name: Accounts specialist
+    description: Reads client profiles and holdings; changes mailing addresses.
+    delegated_by: [orchestrator-agent]
+    tools: [get_client_profile, get_positions, update_mailing_address]
+
+  payments-agent:
+    name: Payments specialist
+    description: Requests wires. Every wire still goes through policy and a human approver.
+    delegated_by: [orchestrator-agent]
+    tools: [initiate_wire_transfer]
+
+  comms-agent:
+    name: Client communications specialist
+    description: Drafts client emails (never sends). May read the profile for context.
+    delegated_by: [orchestrator-agent]
+    tools: [draft_client_email, get_client_profile]

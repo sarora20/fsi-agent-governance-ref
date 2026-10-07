@@ -1,0 +1,894 @@
+{
+  "realm": "fsi-demo",
+  "displayName": "Fictional Wealth Co. (demo)",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "bruteForceProtected": true,
+  "defaultSignatureAlgorithm": "EdDSA",
+  "accessTokenLifespan": 600,
+  "ssoSessionIdleTimeout": 3600,
+  "ssoSessionMaxLifespan": 36000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "roles": {
+    "realm": [
+      {
+        "name": "advisor",
+        "description": "Fictional firm role: advisor"
+      },
+      {
+        "name": "analyst",
+        "description": "Fictional firm role: analyst"
+      },
+      {
+        "name": "compliance",
+        "description": "Fictional firm role: compliance"
+      },
+      {
+        "name": "service_associate",
+        "description": "Fictional firm role: service_associate"
+      },
+      {
+        "name": "supervisor",
+        "description": "Fictional firm role: supervisor"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "ana.ruiz",
+      "firstName": "Ana",
+      "lastName": "Ruiz",
+      "email": "ana.ruiz@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "advisor"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "sam.okafor",
+      "firstName": "Sam",
+      "lastName": "Okafor",
+      "email": "sam.okafor@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "service_associate"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "lee.park",
+      "firstName": "Lee",
+      "lastName": "Park",
+      "email": "lee.park@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "analyst"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "casey.morgan",
+      "firstName": "Casey",
+      "lastName": "Morgan",
+      "email": "casey.morgan@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "supervisor"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "riley.brooks",
+      "firstName": "Riley",
+      "lastName": "Brooks",
+      "email": "riley.brooks@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": [
+        "compliance"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": false
+        }
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "basic",
+      "description": "sub, auth_time and preferred_username",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "auth_time",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "config": {
+            "user.session.note": "AUTH_TIME",
+            "claim.name": "auth_time",
+            "jsonType.label": "long",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "agent-actor",
+      "description": "RFC 8693 act claim naming the agent. A default scope, not a client mapper: during a downscope-only exchange Keycloak drops client-level mappers",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "act (RFC 8693 actor)",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "act.sub",
+            "claim.value": "advisor-assist-agent",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "gateway-audience",
+      "description": "Adds the tool gateway as a token audience (RFC 8707 resource id)",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "gateway audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "https://gateway.govagent.example",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "agent-audience",
+      "description": "Lets the agent clients exchange the person's token (RFC 8693 requires the requester in aud)",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "agent audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "advisor-assist-agent",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "orchestrator audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "orchestrator-agent",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "client:read",
+      "description": "Gateway scope client:read",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "positions:read",
+      "description": "Gateway scope positions:read",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "profile:write",
+      "description": "Gateway scope profile:write",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "comms:draft",
+      "description": "Gateway scope comms:draft",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "payments:initiate",
+      "description": "Gateway scope payments:initiate",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "approvals:decide",
+      "description": "Gateway scope approvals:decide",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "audit:read",
+      "description": "Gateway scope audit:read",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "controls:admin",
+      "description": "Gateway scope controls:admin (engage/release a kill switch)",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "specialist-audience",
+      "description": "Orchestrator tokens may be exchanged only by the specialists: this is what makes the delegation topology hold",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "accounts-agent audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "accounts-agent",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "payments-agent audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "payments-agent",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "comms-agent audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "comms-agent",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "actor-orchestrator",
+      "description": "act claim for the orchestrator",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "act (RFC 8693 actor)",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "act.sub",
+            "claim.value": "orchestrator-agent",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "actor-accounts",
+      "description": "Nested act claim: accounts-agent acting for orchestrator-agent. Truthful because only orchestrator tokens carry accounts-agent in aud",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "act (RFC 8693 actor)",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "act.sub",
+            "claim.value": "accounts-agent",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "act.act (delegator)",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "act.act.sub",
+            "claim.value": "orchestrator-agent",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "actor-payments",
+      "description": "Nested act claim: payments-agent acting for orchestrator-agent. Truthful because only orchestrator tokens carry payments-agent in aud",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "act (RFC 8693 actor)",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "act.sub",
+            "claim.value": "payments-agent",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "act.act (delegator)",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "act.act.sub",
+            "claim.value": "orchestrator-agent",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "actor-comms",
+      "description": "Nested act claim: comms-agent acting for orchestrator-agent. Truthful because only orchestrator tokens carry comms-agent in aud",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "act (RFC 8693 actor)",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "act.sub",
+            "claim.value": "comms-agent",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "act.act (delegator)",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "act.act.sub",
+            "claim.value": "orchestrator-agent",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "scopeMappings": [
+    {
+      "clientScope": "client:read",
+      "roles": [
+        "advisor",
+        "analyst",
+        "service_associate",
+        "supervisor"
+      ]
+    },
+    {
+      "clientScope": "positions:read",
+      "roles": [
+        "advisor",
+        "analyst",
+        "service_associate"
+      ]
+    },
+    {
+      "clientScope": "profile:write",
+      "roles": [
+        "advisor",
+        "service_associate"
+      ]
+    },
+    {
+      "clientScope": "comms:draft",
+      "roles": [
+        "advisor",
+        "service_associate"
+      ]
+    },
+    {
+      "clientScope": "payments:initiate",
+      "roles": [
+        "advisor"
+      ]
+    },
+    {
+      "clientScope": "approvals:decide",
+      "roles": [
+        "supervisor"
+      ]
+    },
+    {
+      "clientScope": "controls:admin",
+      "roles": [
+        "supervisor"
+      ]
+    },
+    {
+      "clientScope": "audit:read",
+      "roles": [
+        "compliance"
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "advisor-console",
+      "name": "Advisor and supervisor console (demo web app)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "console-dev-secret-not-for-production",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "consentRequired": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [
+        "http://localhost:8000/auth/callback",
+        "http://127.0.0.1:8000/auth/callback"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "access.token.header.type.rfc9068": "true",
+        "access.token.signed.response.alg": "EdDSA",
+        "id.token.signed.response.alg": "EdDSA",
+        "use.refresh.tokens": "true",
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8000/*##http://127.0.0.1:8000/*"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "agent-audience",
+        "gateway-audience"
+      ],
+      "optionalClientScopes": [
+        "client:read",
+        "positions:read",
+        "profile:write",
+        "comms:draft",
+        "payments:initiate",
+        "approvals:decide",
+        "audit:read",
+        "controls:admin"
+      ]
+    },
+    {
+      "clientId": "advisor-assist-agent",
+      "name": "Advisor-assist agent runtime",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "agent-dev-secret-not-for-production",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "consentRequired": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "access.token.header.type.rfc9068": "true",
+        "access.token.signed.response.alg": "EdDSA",
+        "id.token.signed.response.alg": "EdDSA",
+        "use.refresh.tokens": "true",
+        "standard.token.exchange.enabled": "true",
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "gateway-audience",
+        "agent-actor"
+      ],
+      "optionalClientScopes": [
+        "client:read",
+        "positions:read",
+        "profile:write",
+        "comms:draft",
+        "payments:initiate"
+      ]
+    },
+    {
+      "clientId": "orchestrator-agent",
+      "name": "Orchestrator agent (plans, delegates; no tools of its own)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "orchestrator-dev-secret-not-for-production",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "consentRequired": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "access.token.header.type.rfc9068": "true",
+        "access.token.signed.response.alg": "EdDSA",
+        "id.token.signed.response.alg": "EdDSA",
+        "use.refresh.tokens": "true",
+        "standard.token.exchange.enabled": "true",
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "gateway-audience",
+        "specialist-audience",
+        "actor-orchestrator"
+      ],
+      "optionalClientScopes": [
+        "client:read",
+        "positions:read",
+        "profile:write",
+        "comms:draft",
+        "payments:initiate"
+      ]
+    },
+    {
+      "clientId": "accounts-agent",
+      "name": "Accounts specialist agent",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "accounts-dev-secret-not-for-production",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "consentRequired": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "access.token.header.type.rfc9068": "true",
+        "access.token.signed.response.alg": "EdDSA",
+        "id.token.signed.response.alg": "EdDSA",
+        "use.refresh.tokens": "true",
+        "standard.token.exchange.enabled": "true",
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "gateway-audience",
+        "actor-accounts"
+      ],
+      "optionalClientScopes": [
+        "client:read",
+        "positions:read",
+        "profile:write"
+      ]
+    },
+    {
+      "clientId": "payments-agent",
+      "name": "Payments specialist agent",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "payments-dev-secret-not-for-production",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "consentRequired": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "access.token.header.type.rfc9068": "true",
+        "access.token.signed.response.alg": "EdDSA",
+        "id.token.signed.response.alg": "EdDSA",
+        "use.refresh.tokens": "true",
+        "standard.token.exchange.enabled": "true",
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "gateway-audience",
+        "actor-payments"
+      ],
+      "optionalClientScopes": [
+        "payments:initiate"
+      ]
+    },
+    {
+      "clientId": "comms-agent",
+      "name": "Client communications specialist agent",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "comms-dev-secret-not-for-production",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "consentRequired": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "access.token.header.type.rfc9068": "true",
+        "access.token.signed.response.alg": "EdDSA",
+        "id.token.signed.response.alg": "EdDSA",
+        "use.refresh.tokens": "true",
+        "standard.token.exchange.enabled": "true",
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "gateway-audience",
+        "actor-comms"
+      ],
+      "optionalClientScopes": [
+        "comms:draft",
+        "client:read"
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "basic"
+  ],
+  "defaultOptionalClientScopes": [],
+  "components": {
+    "org.keycloak.keys.KeyProvider": [
+      {
+        "name": "eddsa-generated",
+        "providerId": "eddsa-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "200"
+          ],
+          "eddsaEllipticCurveKey": [
+            "Ed25519"
+          ]
+        }
+      },
+      {
+        "name": "rsa-generated",
+        "providerId": "rsa-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "100"
+          ]
+        }
+      },
+      {
+        "name": "rsa-enc-generated",
+        "providerId": "rsa-enc-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "100"
+          ],
+          "algorithm": [
+            "RSA-OAEP"
+          ]
+        }
+      },
+      {
+        "name": "hmac-generated-hs512",
+        "providerId": "hmac-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "100"
+          ],
+          "algorithm": [
+            "HS512"
+          ]
+        }
+      },
+      {
+        "name": "aes-generated",
+        "providerId": "aes-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "100"
+          ]
+        }
+      }
+    ]
+  },
+  "clientProfiles": {
+    "profiles": [
+      {
+        "name": "exchange-downscope-only",
+        "description": "Token exchange may only narrow scopes, never add them",
+        "executors": [
+          {
+            "executor": "downscope-assertion-grant-enforcer",
+            "configuration": {}
+          }
+        ]
+      }
+    ]
+  },
+  "clientPolicies": {
+    "policies": [
+      {
+        "name": "token-exchange-downscope-only",
+        "description": "Applies to every RFC 8693 token exchange in this realm",
+        "enabled": true,
+        "conditions": [
+          {
+            "condition": "grant-type",
+            "configuration": {
+              "grant_types": [
+                "urn:ietf:params:oauth:grant-type:token-exchange"
+              ]
+            }
+          }
+        ],
+        "profiles": [
+          "exchange-downscope-only"
+        ]
+      }
+    ]
+  }
+}

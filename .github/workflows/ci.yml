@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev,adk,service]"
+      - run: pytest
+      - name: Eval gate (offline)
+        run: |
+          govagent eval --adapter scripted
+          govagent eval --adapter adk-scripted
+          govagent eval --adapter scripted-remote
+      - name: Evidence pack
+        run: govagent evidence --audit reports/audit-scripted.jsonl --report reports/eval-scripted.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-reports-${{ matrix.python-version }}
+          path: |
+            reports/
+            evidence/

@@ -1,0 +1,90 @@
+# Policy for the advisor-assist agent.
+# Deny by default. Rules can only tighten a tool's baseline (allow -> require_approval -> deny).
+# `fact:` values come from systems of record via the gateway, never from the model.
+
+version: "2026.09.1"
+default_decision: deny
+
+limits:
+  max_tool_calls_per_run: 8
+  max_high_risk_calls_per_run: 1
+  max_risk_tier: HIGH
+
+# Pending approvals expire; an approval decided after expiry never executes.
+approvals:
+  ttl_seconds: 14400   # 4 hours
+
+# Per-tool circuit breaker: repeated backend errors open it, refusing further calls to that tool
+# without reaching the backend, for cooldown_seconds; then exactly one probe is let through
+# (half-open) to test recovery.
+circuit_breaker:
+  max_errors: 3
+  window_seconds: 60
+  cooldown_seconds: 30
+
+# Cross-run limits over rolling windows. Pending approvals count as reservations.
+velocity:
+  - id: payments.client-daily
+    tool: initiate_wire_transfer
+    per: client
+    window_seconds: 86400
+    max_count: 3
+    max_total: {field: amount_usd, limit: 50000}
+    reason: "agent-initiated wires for one client are capped at $50,000 and 3 per 24 hours"
+  - id: payments.principal-daily
+    tool: initiate_wire_transfer
+    per: principal
+    window_seconds: 86400
+    max_total: {field: amount_usd, limit: 150000}
+    reason: "agent-initiated wires on behalf of one advisor are capped at $150,000 per 24 hours"
+  - id: profile.address-changes-daily
+    tool: update_mailing_address
+    per: principal
+    window_seconds: 86400
+    max_count: 10
+    reason: "more than 10 address changes by one advisor's agent in 24 hours needs review"
+
+tools:
+  get_client_profile:
+    decision: allow
+    reason: "read-only, within entitlement"
+
+  get_positions:
+    decision: allow
+    reason: "read-only, within entitlement"
+
+  draft_client_email:
+    decision: allow
+    reason: "saved as draft; advisor reviews before sending"
+    rules:
+      - id: comms.no-performance-promises
+        when: {field: body, op: contains_any, value: ["guarantee", "guaranteed", "risk-free", "can't lose", "cannot lose"]}
+        decision: deny
+        reason: "client communications may not promise returns or describe investments as risk-free"
+
+  update_mailing_address:
+    decision: allow
+    reason: "record change within entitlement"
+    rules:
+      # a second change inside 30 days is a classic account-takeover signal
+      - id: profile.second-change-within-30-days
+        when: {fact_field: days_since_last_address_change, op: lt, value: 30}
+        decision: require_approval
+        reason: "second address change within 30 days needs supervisor approval (account-takeover control)"
+
+  initiate_wire_transfer:
+    decision: require_approval
+    reason: "money movement always needs supervisor approval"
+    rules:
+      - id: payments.max-agent-wire
+        when: {field: amount_usd, op: gt, value: 50000}
+        decision: deny
+        reason: "wires above $50,000 must be initiated by operations, not by an agent"
+      - id: payments.approved-beneficiary-only
+        when: {field: beneficiary_id, op: not_in, fact: approved_beneficiaries}
+        decision: deny
+        reason: "beneficiary is not on the client's approved list"
+      - id: payments.account-ownership
+        when: {field: from_account_id, op: not_in, fact: client_account_ids}
+        decision: deny
+        reason: "source account does not belong to this client"

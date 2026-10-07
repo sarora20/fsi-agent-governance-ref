@@ -1,0 +1,13 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+reports/
+evidence/
+.env
+build/
+dist/
+govagent-state.db
+gateway-audit.jsonl
+.demo/
+.keycloak/
